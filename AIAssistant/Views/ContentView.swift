@@ -1,4 +1,3 @@
-
 //
 //  ContentView.swift
 //  AIAssistant
@@ -7,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation  // ✅ For exit() function
 
 struct ContentView: View {
     @EnvironmentObject var audioManager: AudioManager
@@ -17,10 +17,10 @@ struct ContentView: View {
     @State private var isRecording = false
     @State private var recognizedText = ""
     @State private var responseText = ""
-    @State private var isEnglish = true
+    @State private var isEnglish = false // ✅ Default: Türkçe (false = Turkish)
     @State private var micVolume: Double = 1.0
     @State private var speechVolume: Double = 1.0
-    @State private var voxSensitivity: Double = 0.25
+    @State private var voxSensitivity: Double = 0.25 // ✅ Default 0.25 (25%)
     @State private var enableClaude = false
     @State private var enableVOX = false
     @State private var maxWords = 20
@@ -30,14 +30,19 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                // Header
-                headerView
+            ScrollView {  // ✅ ScrollView ekle - içerik sığmazsa scroll edilebilir
+                VStack(spacing: 15) {  // ✅ spacing 20'den 15'e düşürüldü
+                    // Header
+                    headerView
                 
                 // Audio Level Indicator
-                AudioLevelView(level: audioManager.audioLevel)
-                    .frame(height: 50)
-                    .padding(.horizontal)
+                AudioLevelView(
+                    level: audioManager.audioLevel,
+                    voxSensitivity: voxSensitivity,
+                    isVOXActive: audioManager.isVOXActive
+                )
+                .frame(height: 50)
+                .padding(.horizontal)
                 
                 // VOX Status Indicator
                 if enableVOX {
@@ -57,7 +62,7 @@ struct ContentView: View {
                     }
                     .padding()
                 }
-                .frame(maxHeight: 300)
+                .frame(maxHeight: 200)  // ✅ 300'den 200'e düşürüldü - daha fazla alan
                 .background(Color.gray.opacity(0.1))
                 .cornerRadius(10)
                 .padding(.horizontal)
@@ -74,13 +79,38 @@ struct ContentView: View {
                 // Claude AI Toggle
                 claudeToggleView
                 
-                Spacer()
-                
-                // Action Buttons
-                actionButtonsView
+                // Action Buttons (Clear & Exit side by side)
+                HStack(spacing: 15) {  // ✅ HStack - yan yana
+                    // Clear Button
+                    Button(action: clearText) {
+                        Label("Clear", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                    
+                    // Exit Button
+                    Button(action: {
+                        exit(0)
+                    }) {
+                        Label("Exit", systemImage: "xmark.circle.fill")
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 10)
+                .padding(.bottom, 20)  // ✅ Alt padding
             }
-            .navigationTitle("AI Assistant")
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.bottom, 20)  // ✅ ScrollView için ekstra padding
+            }  // ✅ ScrollView kapanışı
+            // ✅ Navigation title kaldırıldı
+            .navigationBarHidden(true)  // ← Navigation bar'ı tamamen gizle
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -174,30 +204,30 @@ struct ContentView: View {
     }
     
     private var slidersView: some View {
-        VStack(spacing: 15) {
-            // Microphone Volume
-            VStack(alignment: .leading) {
-                Text("Microphone Volume: \(Int(micVolume * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Slider(value: $micVolume, in: 0...1)
-                    .onChange(of: micVolume) { _, newValue in
-                        audioManager.setMicrophoneVolume(newValue)
-                    }
-            }
-            
-            // Speech Volume
-            VStack(alignment: .leading) {
-                Text("Speech Volume: \(Int(speechVolume * 100))%")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                
-                Slider(value: $speechVolume, in: 0...1)
-                    .onChange(of: speechVolume) { _, newValue in
-                        ttsService.setVolume(Float(newValue))
-                    }
-            }
+        VStack(spacing: 10) {  // ✅ 15'ten 10'a düşürüldü
+//            // Microphone Volume
+//            VStack(alignment: .leading) {
+//                Text("Microphone Volume: \(Int(micVolume * 100))%")
+//                    .font(.caption)
+//                    .foregroundColor(.secondary)
+//                
+//                Slider(value: $micVolume, in: 0...1)
+//                    .onChange(of: micVolume) { _, newValue in
+//                        audioManager.setMicrophoneVolume(newValue)
+//                    }
+//            }
+//            
+//            // Speech Volume
+//            VStack(alignment: .leading) {
+//                Text("Speech Volume: \(Int(speechVolume * 100))%")
+//                    .font(.caption)
+//                    .foregroundColor(.secondary)
+//                
+//                Slider(value: $speechVolume, in: 0...1)
+//                    .onChange(of: speechVolume) { _, newValue in
+//                        ttsService.setVolume(Float(newValue))
+//                    }
+//            }
             
             // VOX Sensitivity
             VStack(alignment: .leading) {
@@ -232,7 +262,7 @@ struct ContentView: View {
                     .padding(.horizontal)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)  // ✅ 10'dan 8'e düşürüldü
         .background(Color.green.opacity(0.1))
         .cornerRadius(10)
         .padding(.horizontal)
@@ -257,25 +287,10 @@ struct ContentView: View {
                 .padding(.horizontal)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)  // ✅ 10'dan 8'e düşürüldü
         .background(Color.gray.opacity(0.1))
         .cornerRadius(10)
         .padding(.horizontal)
-    }
-    
-    private var actionButtonsView: some View {
-        HStack(spacing: 20) {
-            Button(action: clearText) {
-                Label("Clear", systemImage: "trash")
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.orange)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.bottom, 20)
     }
     
     // MARK: - Helper Methods
@@ -295,6 +310,13 @@ struct ContentView: View {
     }
     
     private func setupServices() {
+        // ✅ CRITICAL: AudioManager referansını SpeechService'e bağla
+        speechService.audioManager = audioManager
+        
+        // ✅ Set default language to Turkish
+        ttsService.setLanguage("tr-TR")
+        print("🌐 Default language: Türkçe (tr-TR)")
+        
         speechService.onRecognition = { text, language in
             self.recognizedText = text
             self.currentRecognitionLanguage = language
@@ -431,11 +453,7 @@ struct ContentView: View {
             ttsService.setLanguage(lang)
             ttsService.speak(text: text)
             
-            // Seslendirme bittikten sonra orijinal dile geri dön
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let originalLanguage = self.isEnglish ? "en-US" : "tr-TR"
-                self.ttsService.setLanguage(originalLanguage)
-            }
+            // ✅ Language is already set correctly, no need to restore
         } else {
             ttsService.speak(text: text)
         }
@@ -451,24 +469,62 @@ struct ContentView: View {
 
 struct AudioLevelView: View {
     let level: Double
+    let voxSensitivity: Double
+    let isVOXActive: Bool
     
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
+                // Background
                 Rectangle()
                     .fill(Color.black)
                 
+                // Level bar
                 Rectangle()
-                    .fill(level > 0.25 ? Color.green : Color.red)
+                    .fill(levelColor)
                     .frame(width: geometry.size.width * level)
                 
-                Text(String(format: "%.2f", level))
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.yellow)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 5)
+                // ✅ VOX Threshold indicator (eğer VOX aktifse)
+                if isVOXActive {
+                    Rectangle()
+                        .fill(Color.yellow.opacity(0.5))
+                        .frame(width: 2)
+                        .offset(x: geometry.size.width * calculatedThreshold)
+                }
+                
+                // Level text
+                HStack {
+                    Text(String(format: "%.2f", level))
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.yellow)
+                    
+                    if isVOXActive {
+                        Text("| Threshold: \(String(format: "%.2f", calculatedThreshold))")
+                            .font(.system(size: 12))
+                            .foregroundColor(.yellow.opacity(0.8))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 5)
             }
             .cornerRadius(5)
+        }
+    }
+    
+    // ✅ Calculate actual VOX threshold (same formula as AudioManager)
+    private var calculatedThreshold: Double {
+        let minThreshold: Double = 0.15
+        let maxThreshold: Double = 0.85
+        return minThreshold + (voxSensitivity * (maxThreshold - minThreshold))
+    }
+    
+    private var levelColor: Color {
+        if isVOXActive {
+            // VOX mode: show if above threshold
+            return level >= calculatedThreshold ? Color.green : Color.red
+        } else {
+            // Normal mode: simple threshold at 0.25
+            return level > 0.25 ? Color.green : Color.red
         }
     }
 }

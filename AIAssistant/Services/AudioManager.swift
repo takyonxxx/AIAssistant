@@ -19,6 +19,7 @@ class AudioManager: NSObject, ObservableObject {
     private var inputNode: AVAudioInputNode?
     private var levelTimer: Timer?
     
+    // ✅ VOX Sensitivity ayarları
     var voxSensitivity: Double = 0.25 {
         didSet {
             print("🎚️ VOX Sensitivity: \(Int(voxSensitivity * 100))%")
@@ -58,7 +59,7 @@ class AudioManager: NSObject, ObservableObject {
         let audioSession = AVAudioSession.sharedInstance()
         
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers])
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers])
             try audioSession.setActive(true)
             
             AVAudioApplication.requestRecordPermission { granted in
@@ -111,8 +112,16 @@ class AudioManager: NSObject, ObservableObject {
         if isVOXRecording {
             stopRecording()
             isVOXRecording = false
-            print("⏸️ VOX paused (TTS speaking)")
         }
+        
+        // ✅ CRITICAL: Stop audio engine to free audio resources for TTS
+        if let audioEngine = audioEngine, audioEngine.isRunning {
+            inputNode?.removeTap(onBus: 0)
+            audioEngine.stop()
+            print("🎧 VOX audio engine stopped for TTS")
+        }
+        
+        print("⏸️ VOX paused (TTS speaking)")
     }
     
     // TTS bitince VOX'u devam ettir
@@ -121,7 +130,39 @@ class AudioManager: NSObject, ObservableObject {
         
         isVOXPaused = false
         silenceDuration = 0
+        
+        // ✅ CRITICAL: Restart audio engine for VOX monitoring
+        setupAudioEngineForVOX()
+        
         print("▶️ VOX resumed (TTS finished)")
+    }
+    
+    // MARK: - Tap Management for Speech Recognition
+    
+    func pauseTapForSpeechRecognition() {
+        guard let inputNode = inputNode, let audioEngine = audioEngine, audioEngine.isRunning else { return }
+        
+        // Tap'i kaldır ama engine'i çalışır durumda bırak
+        inputNode.removeTap(onBus: 0)
+        print("🎧 VOX tap paused for speech recognition")
+    }
+    
+    func resumeTapAfterSpeechRecognition() {
+        guard let inputNode = inputNode, let audioEngine = audioEngine, audioEngine.isRunning else {
+            // Engine durmuşsa yeniden başlat
+            if isVOXActive {
+                setupAudioEngineForVOX()
+            }
+            return
+        }
+        
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            self?.processAudioBuffer(buffer)
+        }
+        
+        print("🎧 VOX tap resumed after speech recognition")
     }
     
     // MARK: - Recording Controls
@@ -174,6 +215,12 @@ class AudioManager: NSObject, ObservableObject {
     }
     
     private func setupAudioEngineForVOX() {
+        // ✅ Stop existing engine if running
+        if let existingEngine = audioEngine, existingEngine.isRunning {
+            inputNode?.removeTap(onBus: 0)
+            existingEngine.stop()
+        }
+        
         audioEngine = AVAudioEngine()
         guard let audioEngine = audioEngine else { return }
         
@@ -190,7 +237,7 @@ class AudioManager: NSObject, ObservableObject {
             try audioEngine.start()
             print("🎧 Audio engine started for VOX monitoring")
         } catch {
-            print("Could not start audio engine: \(error.localizedDescription)")
+            print("❌ Could not start audio engine: \(error.localizedDescription)")
         }
     }
     
@@ -227,8 +274,16 @@ class AudioManager: NSObject, ObservableObject {
     private func checkVOXThreshold(level: Double) {
         guard isVOXActive && !isVOXPaused else { return }
         
-        // Gerçek threshold hesaplama - daha hassas
-        let actualThreshold = voxSensitivity * 0.5 // Sensitivity'i yarıya böl (daha hassas)
+        // ✅ FIX: Threshold hesaplama - daha yüksek eşik değeri
+        // voxSensitivity: 0.0-1.0 arası (kullanıcı ayarı)
+        // Minimum: 0.15, Maximum: 0.85
+        let minThreshold: Double = 0.15
+        let maxThreshold: Double = 0.85
+        let actualThreshold = minThreshold + (voxSensitivity * (maxThreshold - minThreshold))
+        
+        // %25 sensitivity = 0.15 + (0.25 * 0.70) = 0.325 threshold
+        // %50 sensitivity = 0.15 + (0.50 * 0.70) = 0.50 threshold
+        // %100 sensitivity = 0.15 + (1.0 * 0.70) = 0.85 threshold
         
         if level >= actualThreshold {
             // Ses eşiği geçildi
@@ -239,7 +294,7 @@ class AudioManager: NSObject, ObservableObject {
                 isVOXRecording = true
                 startRecording()
                 onVOXRecordingStarted?()
-                print("🔴 VOX: Recording started (level: \(String(format: "%.2f", level)), threshold: \(String(format: "%.2f", actualThreshold)))")
+                print("🔴 VOX: Recording started (level: \(String(format: "%.3f", level)), threshold: \(String(format: "%.3f", actualThreshold)))")
             }
         } else if isVOXRecording {
             // Sessizlik başladı
