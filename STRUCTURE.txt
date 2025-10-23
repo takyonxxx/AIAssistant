@@ -1,0 +1,39 @@
+# Project Structure
+
+```
+AIAssistant/
+├── AIAssistant.xcodeproj/          ← Open this in Xcode
+│   ├── project.pbxproj
+│   └── xcshareddata/xcschemes/
+│       └── AIAssistant.xcscheme
+│
+├── AIAssistant/
+│   ├── AIAssistantApp.swift        ← App entry
+│   ├── Info.plist                  ← Permissions
+│   │
+│   ├── Views/
+│   │   └── ContentView.swift       ← Main UI
+│   │
+│   ├── Services/
+│   │   ├── AudioManager.swift
+│   │   ├── SpeechRecognitionService.swift
+│   │   ├── TextToSpeechService.swift
+│   │   └── ClaudeService.swift
+│   │
+│   ├── Utils/
+│   │   └── Constants.swift         ← ⚠️ Add API key here
+│   │
+│   └── Resources/Assets.xcassets/
+│       ├── AppIcon.appiconset/
+│       └── AccentColor.colorset/
+│
+└── README.md
+```
+
+**Total: 14 files**
+
+## To Run:
+
+1. Open `AIAssistant.xcodeproj`
+2. Edit `AIAssistant/Utils/Constants.swift` - add Claude API key
+3. Press Cmd+R
