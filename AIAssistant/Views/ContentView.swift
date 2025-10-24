@@ -79,6 +79,9 @@ struct ContentView: View {
                 // Claude AI Toggle
                 claudeToggleView
                 
+                // Mode Indicator
+                modeIndicatorView
+                
                 // Action Buttons (Clear & Exit side by side)
                 HStack(spacing: 15) {  // ✅ HStack - yan yana
                     // Clear Button
@@ -291,6 +294,49 @@ struct ContentView: View {
         .background(Color.gray.opacity(0.1))
         .cornerRadius(10)
         .padding(.horizontal)
+    }
+    
+    // Mode Indicator View
+    private var modeIndicatorView: some View {
+        HStack {
+            // Mode icon
+            Image(systemName: enableClaude ? "brain.head.profile" : "arrow.left.arrow.right")
+                .font(.system(size: 16))
+                .foregroundColor(.white)
+            
+            // Mode text
+            Text(modeText)
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(modeColor)
+        .cornerRadius(8)
+        .padding(.horizontal)
+    }
+    
+    private var modeText: String {
+        if enableClaude {
+            return "Mode: Claude AI"
+        } else if !isEnglish {
+            return "Mode: Translation (TR → EN)"
+        } else {
+            return "Mode: Echo (EN)"
+        }
+    }
+    
+    private var modeColor: Color {
+        if enableClaude {
+            return Color.purple.opacity(0.8)
+        } else if !isEnglish {
+            return Color.blue.opacity(0.8)
+        } else {
+            return Color.green.opacity(0.8)
+        }
     }
     
     // MARK: - Helper Methods
