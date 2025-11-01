@@ -32,8 +32,10 @@ class SpeechRecognitionService: NSObject, ObservableObject {
     private let minimumRecordingDuration: TimeInterval = 0.5 // En az 0.5 saniye
     
     // Çeviri için
-    var shouldTranslateToEnglish: Bool = false
-    var shouldTranslateToTurkish: Bool = false
+    var shouldTranslateFromTurkish: Bool = false  // TR → Başka dil
+    var shouldTranslateToTurkish: Bool = false    // Başka dil → TR
+    var targetLanguage: String? = nil             // Hedef dil
+    var sourceLanguage: String? = nil             // Kaynak dil (genel çeviri için)
     
     // ✅ AudioManager referansı - tap çakışmasını önlemek için
     weak var audioManager: AudioManager?
@@ -170,14 +172,18 @@ class SpeechRecognitionService: NSObject, ObservableObject {
                     print("Tanınan metin: \(transcribedText)")
                     
                     // Çeviri kontrolü
-                    if self.currentLanguage == "tr-TR" && self.shouldTranslateToEnglish {
-                        // Türkçe tanındı → İngilizce'ye çevir
-                        self.translateToEnglish(turkishText: transcribedText)
-                    } else if self.currentLanguage == "en-US" && self.shouldTranslateToTurkish {
-                        // İngilizce tanındı → Türkçe'ye çevir
-                        self.translateToTurkish(englishText: transcribedText)
+                    if self.shouldTranslateFromTurkish && self.currentLanguage == "tr-TR" {
+                        // TR → Hedef dile çevir
+                        let targetLang = self.targetLanguage ?? "en"
+                        self.translateFromTurkish(turkishText: transcribedText, targetLanguage: targetLang)
+                    } else if self.shouldTranslateToTurkish && self.currentLanguage != "tr-TR" {
+                        // Başka dil → TR'ye çevir
+                        self.translateToTurkish(sourceText: transcribedText, sourceLanguage: self.extractLanguageCode(from: self.currentLanguage))
+                    } else if let srcLang = self.sourceLanguage, let tgtLang = self.targetLanguage {
+                        // Genel çeviri: X → Y
+                        self.translateGeneral(sourceText: transcribedText, sourceLanguage: srcLang, targetLanguage: tgtLang)
                     } else {
-                        // Çeviri yok, dil kodunu da gönder
+                        // Çeviri yok
                         self.onRecognition?(transcribedText, self.currentLanguage)
                     }
                 }
@@ -211,7 +217,8 @@ class SpeechRecognitionService: NSObject, ObservableObject {
     
     // MARK: - Translation
     
-    private func translateToEnglish(turkishText: String) {
+    // TR → Herhangi bir dil
+    private func translateFromTurkish(turkishText: String, targetLanguage: String) {
         let urlString = "https://translation.googleapis.com/language/translate/v2?key=\(googleAPIKey)"
         
         guard let url = URL(string: urlString) else {
@@ -222,7 +229,7 @@ class SpeechRecognitionService: NSObject, ObservableObject {
         let requestBody: [String: Any] = [
             "q": turkishText,
             "source": "tr",
-            "target": "en",
+            "target": targetLanguage,
             "format": "text"
         ]
         
@@ -280,10 +287,11 @@ class SpeechRecognitionService: NSObject, ObservableObject {
                    let translatedText = translations.first?["translatedText"] as? String {
                     
                     DispatchQueue.main.async {
-                        print("✅ Çeviri: '\(turkishText)' → '\(translatedText)'")
+                        print("✅ Çeviri: '\(turkishText)' → '\(translatedText)' (\(targetLanguage.uppercased()))")
                         
-                        // İngilizce metin + İngilizce dil kodu gönder
-                        self?.onRecognition?(translatedText, "en-US")
+                        // Çevrilmiş metin + hedef dil kodu gönder
+                        let speechCode = self?.languageCodeToSpeechCode(targetLanguage) ?? "en-US"
+                        self?.onRecognition?(translatedText, speechCode)
                     }
                 } else {
                     DispatchQueue.main.async {
@@ -298,7 +306,8 @@ class SpeechRecognitionService: NSObject, ObservableObject {
         }.resume()
     }
     
-    private func translateToTurkish(englishText: String) {
+    // Herhangi bir dil → TR
+    private func translateToTurkish(sourceText: String, sourceLanguage: String) {
         let urlString = "https://translation.googleapis.com/language/translate/v2?key=\(googleAPIKey)"
         
         guard let url = URL(string: urlString) else {
@@ -307,8 +316,8 @@ class SpeechRecognitionService: NSObject, ObservableObject {
         }
         
         let requestBody: [String: Any] = [
-            "q": englishText,
-            "source": "en",
+            "q": sourceText,
+            "source": sourceLanguage,
             "target": "tr",
             "format": "text"
         ]
@@ -367,10 +376,99 @@ class SpeechRecognitionService: NSObject, ObservableObject {
                    let translatedText = translations.first?["translatedText"] as? String {
                     
                     DispatchQueue.main.async {
-                        print("✅ Çeviri: '\(englishText)' → '\(translatedText)'")
+                        print("✅ Çeviri: '\(sourceText)' → '\(translatedText)' (\(sourceLanguage.uppercased())→TR)")
                         
                         // Türkçe metin + Türkçe dil kodu gönder
                         self?.onRecognition?(translatedText, "tr-TR")
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self?.onError?("Çeviri yanıtı ayrıştırılamadı")
+                    }
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.onError?("Çeviri JSON hatası: \(error.localizedDescription)")
+                }
+            }
+        }.resume()
+    }
+    
+    // Genel çeviri: Herhangi bir dil → Herhangi bir dil
+    private func translateGeneral(sourceText: String, sourceLanguage: String, targetLanguage: String) {
+        let urlString = "https://translation.googleapis.com/language/translate/v2?key=\(googleAPIKey)"
+        
+        guard let url = URL(string: urlString) else {
+            onError?("Çeviri URL'si geçersiz")
+            return
+        }
+        
+        let requestBody: [String: Any] = [
+            "q": sourceText,
+            "source": sourceLanguage,
+            "target": targetLanguage,
+            "format": "text"
+        ]
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            onError?("Çeviri isteği oluşturulamadı")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    self?.onError?("Çeviri hatası: \(error.localizedDescription)")
+                }
+                return
+            }
+            
+            guard let httpResponse = response as? HTTPURLResponse else {
+                DispatchQueue.main.async {
+                    self?.onError?("Geçersiz yanıt")
+                }
+                return
+            }
+            
+            guard (200...299).contains(httpResponse.statusCode) else {
+                if let data = data, let errorString = String(data: data, encoding: .utf8) {
+                    print("❌ Google Translate Error Response: \(errorString)")
+                    DispatchQueue.main.async {
+                        self?.onError?("Çeviri hatası (\(httpResponse.statusCode))")
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self?.onError?("Çeviri sunucu hatası: \(httpResponse.statusCode)")
+                    }
+                }
+                return
+            }
+            
+            guard let data = data else {
+                DispatchQueue.main.async {
+                    self?.onError?("Çeviri verisi alınamadı")
+                }
+                return
+            }
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let dataObj = json["data"] as? [String: Any],
+                   let translations = dataObj["translations"] as? [[String: Any]],
+                   let translatedText = translations.first?["translatedText"] as? String {
+                    
+                    DispatchQueue.main.async {
+                        print("✅ Çeviri: '\(sourceText)' → '\(translatedText)' (\(sourceLanguage.uppercased())→\(targetLanguage.uppercased()))")
+                        
+                        // Çevrilmiş metin + hedef dil kodu gönder
+                        let speechCode = self?.languageCodeToSpeechCode(targetLanguage) ?? "en-US"
+                        self?.onRecognition?(translatedText, speechCode)
                     }
                 } else {
                     DispatchQueue.main.async {
@@ -551,14 +649,18 @@ class SpeechRecognitionService: NSObject, ObservableObject {
                             print("✅ Tanınan metin: \(transcript)")
                             
                             // Çeviri kontrolü
-                            if self.currentLanguage == "tr-TR" && self.shouldTranslateToEnglish {
-                                // Türkçe tanındı → İngilizce'ye çevir
-                                self.translateToEnglish(turkishText: transcript)
-                            } else if self.currentLanguage == "en-US" && self.shouldTranslateToTurkish {
-                                // İngilizce tanındı → Türkçe'ye çevir
-                                self.translateToTurkish(englishText: transcript)
+                            if self.shouldTranslateFromTurkish && self.currentLanguage == "tr-TR" {
+                                // TR → Hedef dile çevir
+                                let targetLang = self.targetLanguage ?? "en"
+                                self.translateFromTurkish(turkishText: transcript, targetLanguage: targetLang)
+                            } else if self.shouldTranslateToTurkish && self.currentLanguage != "tr-TR" {
+                                // Başka dil → TR'ye çevir
+                                self.translateToTurkish(sourceText: transcript, sourceLanguage: self.extractLanguageCode(from: self.currentLanguage))
+                            } else if let srcLang = self.sourceLanguage, let tgtLang = self.targetLanguage {
+                                // Genel çeviri: X → Y
+                                self.translateGeneral(sourceText: transcript, sourceLanguage: srcLang, targetLanguage: tgtLang)
                             } else {
-                                // Çeviri yok, dil kodunu da gönder
+                                // Çeviri yok
                                 self.onRecognition?(transcript, self.currentLanguage)
                             }
                         }
@@ -581,6 +683,28 @@ class SpeechRecognitionService: NSObject, ObservableObject {
     }
     
     // MARK: - Helpers
+    
+    // Speech code'dan (zh-CN) dil koduna (zh) dönüştürme
+    private func extractLanguageCode(from speechCode: String) -> String {
+        return String(speechCode.prefix(2))
+    }
+    
+    // Dil kodundan (zh) speech code'a (zh-CN) dönüştürme
+    private func languageCodeToSpeechCode(_ code: String) -> String {
+        switch code.lowercased() {
+        case "en": return "en-US"
+        case "zh": return "zh-CN"
+        case "es": return "es-ES"
+        case "ru": return "ru-RU"
+        case "ar": return "ar-SA"
+        case "fr": return "fr-FR"
+        case "de": return "de-DE"
+        case "ja": return "ja-JP"
+        case "pt": return "pt-PT"
+        case "tr": return "tr-TR"
+        default: return "en-US"
+        }
+    }
     
     private func generateRecordingURL() -> URL? {
         let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

@@ -8,6 +8,71 @@
 import SwiftUI
 import Foundation  // ✅ For exit() function
 
+// MARK: - Language Support
+enum Language: String, CaseIterable, Identifiable {
+    case turkish = "tr"
+    case english = "en"
+    case chinese = "zh"
+    case spanish = "es"
+    case russian = "ru"
+    case arabic = "ar"
+    case french = "fr"
+    case german = "de"
+    case japanese = "ja"
+    case portuguese = "pt"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .turkish: return "🇹🇷 Türkçe"
+        case .english: return "🇺🇸 English"
+        case .chinese: return "🇨🇳 中文"
+        case .spanish: return "🇪🇸 Español"
+        case .russian: return "🇷🇺 Русский"
+        case .arabic: return "🇸🇦 العربية"
+        case .french: return "🇫🇷 Français"
+        case .german: return "🇩🇪 Deutsch"
+        case .japanese: return "🇯🇵 日本語"
+        case .portuguese: return "🇵🇹 Português"
+        }
+    }
+    
+    var shortName: String {
+        switch self {
+        case .turkish: return "TR"
+        case .english: return "EN"
+        case .chinese: return "ZH"
+        case .spanish: return "ES"
+        case .russian: return "RU"
+        case .arabic: return "AR"
+        case .french: return "FR"
+        case .german: return "DE"
+        case .japanese: return "JA"
+        case .portuguese: return "PT"
+        }
+    }
+    
+    var speechCode: String {
+        switch self {
+        case .turkish: return "tr-TR"
+        case .english: return "en-US"
+        case .chinese: return "zh-CN"
+        case .spanish: return "es-ES"
+        case .russian: return "ru-RU"
+        case .arabic: return "ar-SA"
+        case .french: return "fr-FR"
+        case .german: return "de-DE"
+        case .japanese: return "ja-JP"
+        case .portuguese: return "pt-PT"
+        }
+    }
+    
+    var googleTranslateCode: String {
+        return rawValue
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var audioManager: AudioManager
     @EnvironmentObject var claudeService: ClaudeService
@@ -17,7 +82,8 @@ struct ContentView: View {
     @State private var isRecording = false
     @State private var recognizedText = ""
     @State private var responseText = ""
-    @State private var isEnglish = false // ✅ Default: Türkçe (false = Turkish)
+    @State private var centerLanguage: Language = .turkish // ✅ Merkez dil (çeviri yapılacak ana dil)
+    @State private var selectedLanguage: Language = .turkish // ✅ Konuşma dili
     @State private var micVolume: Double = 1.0
     @State private var speechVolume: Double = 1.0
     @State private var voxSensitivity: Double = 0.25 // ✅ Default 0.25 (25%)
@@ -75,6 +141,9 @@ struct ContentView: View {
                 
                 // VOX Toggle
                 voxToggleView
+                
+                // Center Language Selector
+                centerLanguageView
                 
                 // Claude AI Toggle
                 claudeToggleView
@@ -139,7 +208,22 @@ struct ContentView: View {
             
             Spacer()
             
-            Button(action: toggleLanguage) {
+            // ✅ Dil seçici menü
+            Menu {
+                ForEach(Language.allCases) { language in
+                    Button(action: {
+                        selectedLanguage = language
+                        handleLanguageChange()
+                    }) {
+                        HStack {
+                            Text(language.displayName)
+                            if selectedLanguage == language {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
                 Text(languageButtonText)
                     .font(.headline)
                     .padding(.horizontal, 12)
@@ -151,14 +235,21 @@ struct ContentView: View {
         .padding()
     }
     
-    // ✅ Dil butonu metni - Claude durumuna göre
+    // ✅ Dil butonu metni - Claude ve merkez dil durumuna göre
     private var languageButtonText: String {
         if enableClaude {
-            // Claude açık: Sadece dil
-            return isEnglish ? "🇺🇸 EN" : "🇹🇷 TR"
+            // Claude açık: Sadece konuşma dili
+            return selectedLanguage.shortName
         } else {
             // Claude kapalı: Çeviri yönü
-            return isEnglish ? "EN→TR" : "TR→EN"
+            if selectedLanguage == centerLanguage {
+                // Konuşma dili = Merkez dil → Varsayılan hedefe çevir
+                let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+                return "\(selectedLanguage.shortName)→\(defaultTarget.shortName)"
+            } else {
+                // Konuşma dili ≠ Merkez dil → Merkez dile çevir
+                return "\(selectedLanguage.shortName)→\(centerLanguage.shortName)"
+            }
         }
     }
     
@@ -167,7 +258,7 @@ struct ContentView: View {
         if enableClaude {
             return Color.purple.opacity(0.2)
         } else {
-            return isEnglish ? Color.green.opacity(0.2) : Color.blue.opacity(0.2)
+            return selectedLanguage == centerLanguage ? Color.blue.opacity(0.2) : Color.green.opacity(0.2)
         }
     }
     
@@ -291,6 +382,56 @@ struct ContentView: View {
         .padding(.horizontal)
     }
     
+    // ✅ Merkez Dil Seçici
+    private var centerLanguageView: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Center Language (Translation Hub):")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Menu {
+                    ForEach(Language.allCases) { language in
+                        Button(action: {
+                            centerLanguage = language
+                            handleCenterLanguageChange()
+                        }) {
+                            HStack {
+                                Text(language.displayName)
+                                if centerLanguage == language {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(centerLanguage.displayName)
+                            .font(.subheadline)
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.orange.opacity(0.2))
+                    .cornerRadius(6)
+                }
+            }
+            .padding(.horizontal)
+            
+            Text("All translations will go through this language")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.05))
+        .cornerRadius(10)
+        .padding(.horizontal)
+    }
+    
     private var claudeToggleView: some View {
         VStack(spacing: 10) {
             Toggle("Enable Claude AI", isOn: $enableClaude)
@@ -299,13 +440,20 @@ struct ContentView: View {
                     // ✅ Claude toggle edildiğinde çeviri ayarını güncelle
                     updateTranslationSetting()
                     
-                    // ✅ TTS dilini de güncelle
+                    // ✅ TTS dilini de güncelle (merkez dil mantığı)
                     if newValue {
                         // Claude açıldı: Orijinal dilde seslendir
-                        ttsService.setLanguage(isEnglish ? "en-US" : "tr-TR")
+                        ttsService.setLanguage(selectedLanguage.speechCode)
                     } else {
                         // Claude kapandı: Çevrilmiş dilde seslendir
-                        ttsService.setLanguage(isEnglish ? "tr-TR" : "en-US")
+                        if selectedLanguage == centerLanguage {
+                            // Konuşma dili = Merkez dil → Varsayılan hedefe çevir
+                            let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+                            ttsService.setLanguage(defaultTarget.speechCode)
+                        } else {
+                            // Konuşma dili ≠ Merkez dil → Merkez dile çevir
+                            ttsService.setLanguage(centerLanguage.speechCode)
+                        }
                     }
                 }
             
@@ -350,11 +498,18 @@ struct ContentView: View {
     
     private var modeText: String {
         if enableClaude {
-            // Claude açık: Sadece mevcut dil
-            return isEnglish ? "🇺🇸 EN" : "🇹🇷 TR"
+            // Claude açık: Sadece konuşma dili
+            return selectedLanguage.shortName
         } else {
-            // Claude kapalı: Çeviri yönü göster
-            return isEnglish ? "EN→TR" : "TR→EN"
+            // Claude kapalı: Çeviri yönü
+            if selectedLanguage == centerLanguage {
+                // Konuşma dili = Merkez dil → Varsayılan hedefe çevir
+                let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+                return "\(selectedLanguage.shortName)→\(defaultTarget.shortName)"
+            } else {
+                // Konuşma dili ≠ Merkez dil → Merkez dile çevir
+                return "\(selectedLanguage.shortName)→\(centerLanguage.shortName)"
+            }
         }
     }
     
@@ -364,7 +519,7 @@ struct ContentView: View {
             return Color.purple.opacity(0.8)
         } else {
             // Claude kapalı: Çeviri yönüne göre
-            return isEnglish ? Color.green.opacity(0.8) : Color.blue.opacity(0.8)
+            return selectedLanguage == centerLanguage ? Color.blue.opacity(0.8) : Color.green.opacity(0.8)
         }
     }
     
@@ -440,22 +595,53 @@ struct ContentView: View {
         // ✅ Claude açıkken çeviri YAPMA - orijinal dilde sor
         if enableClaude {
             speechService.shouldTranslateToTurkish = false
-            speechService.shouldTranslateToEnglish = false
+            speechService.shouldTranslateFromTurkish = false
+            speechService.targetLanguage = nil
+            speechService.sourceLanguage = nil
             print("❌ Claude aktif - çeviri kapalı (orijinal dilde iletişim)")
             return
         }
         
         // ✅ Claude kapalıyken: Echo için çeviri yap
-        if isEnglish {
-            // İngilizce seçili: İngilizce konuş → Türkçe'ye çevir → Türkçe seslendir
-            speechService.shouldTranslateToTurkish = true
-            speechService.shouldTranslateToEnglish = false
-            print("✅ Çeviri modu: İngilizce → Türkçe (Echo)")
+        // Merkez dil mantığı: Konuşma dili ↔ Merkez dil
+        if selectedLanguage == centerLanguage {
+            // Konuşma dili = Merkez dil → Başka bir dile çevir (varsayılan)
+            let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+            
+            if centerLanguage == .turkish {
+                speechService.shouldTranslateFromTurkish = true
+                speechService.shouldTranslateToTurkish = false
+                speechService.targetLanguage = defaultTarget.googleTranslateCode
+                speechService.sourceLanguage = nil
+            } else {
+                speechService.shouldTranslateFromTurkish = false
+                speechService.shouldTranslateToTurkish = false
+                speechService.sourceLanguage = centerLanguage.googleTranslateCode
+                speechService.targetLanguage = defaultTarget.googleTranslateCode
+            }
+            print("✅ Çeviri modu: \(selectedLanguage.shortName) → \(defaultTarget.shortName) (Echo)")
         } else {
-            // Türkçe seçili: Türkçe konuş → İngilizce'ye çevir → İngilizce seslendir
-            speechService.shouldTranslateToEnglish = true
-            speechService.shouldTranslateToTurkish = false
-            print("✅ Çeviri modu: Türkçe → İngilizce (Echo)")
+            // Konuşma dili ≠ Merkez dil → Merkez dile çevir
+            if centerLanguage == .turkish {
+                // Merkez TR → TR'ye çevir
+                speechService.shouldTranslateToTurkish = true
+                speechService.shouldTranslateFromTurkish = false
+                speechService.targetLanguage = nil
+                speechService.sourceLanguage = nil
+            } else if selectedLanguage == .turkish {
+                // TR konuşuluyor, merkez başka dil → Merkez dile çevir
+                speechService.shouldTranslateFromTurkish = true
+                speechService.shouldTranslateToTurkish = false
+                speechService.targetLanguage = centerLanguage.googleTranslateCode
+                speechService.sourceLanguage = nil
+            } else {
+                // Başka dil → Merkez dile çevir (genel)
+                speechService.shouldTranslateFromTurkish = false
+                speechService.shouldTranslateToTurkish = false
+                speechService.sourceLanguage = selectedLanguage.googleTranslateCode
+                speechService.targetLanguage = centerLanguage.googleTranslateCode
+            }
+            print("✅ Çeviri modu: \(selectedLanguage.shortName) → \(centerLanguage.shortName) (Echo)")
         }
     }
     
@@ -493,10 +679,10 @@ struct ContentView: View {
     }
     
     private func handleVOXRecordingStarted() {
-        let language = isEnglish ? "en-US" : "tr-TR"
+        let language = selectedLanguage.speechCode
         currentRecognitionLanguage = language
         speechService.startRecording(language: language)
-        print("🎤 VOX: Speech recognition started")
+        print("🎤 VOX: Speech recognition started (\(selectedLanguage.shortName))")
     }
     
     private func handleVOXRecordingStopped() {
@@ -505,7 +691,7 @@ struct ContentView: View {
     }
     
     private func startNormalRecording() {
-        let language = isEnglish ? "en-US" : "tr-TR"
+        let language = selectedLanguage.speechCode
         currentRecognitionLanguage = language
         
         // Çeviri ayarını güncelle
@@ -515,19 +701,44 @@ struct ContentView: View {
         speechService.startRecording(language: language)
     }
     
-    private func toggleLanguage() {
-        isEnglish.toggle()
-        
+    private func handleLanguageChange() {
         // ✅ Claude açıkken: Orijinal dilde seslendir
-        // ✅ Claude kapalıyken: Çevrilmiş dilde seslendir (ters dil)
+        // ✅ Claude kapalıyken: Çevrilmiş dilde seslendir (merkez dil mantığı)
         if enableClaude {
-            ttsService.setLanguage(isEnglish ? "en-US" : "tr-TR")
+            // Claude açık: Seçili dilde seslendir
+            ttsService.setLanguage(selectedLanguage.speechCode)
         } else {
-            ttsService.setLanguage(isEnglish ? "tr-TR" : "en-US")
+            // Claude kapalı: Çeviri hedef dilinde seslendir
+            if selectedLanguage == centerLanguage {
+                // Konuşma dili = Merkez dil → Varsayılan hedefe çevir
+                let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+                ttsService.setLanguage(defaultTarget.speechCode)
+            } else {
+                // Konuşma dili ≠ Merkez dil → Merkez dile çevir
+                ttsService.setLanguage(centerLanguage.speechCode)
+            }
         }
         
-        // Dil değiştiğinde çeviri ayarını güncelle
+        // Çeviri ayarını güncelle
         updateTranslationSetting()
+    }
+    
+    private func handleCenterLanguageChange() {
+        // Merkez dil değiştiğinde çeviri ayarlarını güncelle
+        updateTranslationSetting()
+        
+        // TTS dilini de güncelle
+        if !enableClaude {
+            // Claude kapalıyken TTS dilini çeviri hedefine göre ayarla
+            if selectedLanguage == centerLanguage {
+                let defaultTarget = centerLanguage == .english ? Language.turkish : Language.english
+                ttsService.setLanguage(defaultTarget.speechCode)
+            } else {
+                ttsService.setLanguage(centerLanguage.speechCode)
+            }
+        }
+        
+        print("🌍 Merkez dil değiştirildi: \(centerLanguage.displayName)")
     }
     
     private func handleRecognizedText(_ text: String, language: String) {
