@@ -140,15 +140,35 @@ struct ContentView: View {
             Spacer()
             
             Button(action: toggleLanguage) {
-                Text(isEnglish ? "🇺🇸 EN" : "🇹🇷 TR")
+                Text(languageButtonText)
                     .font(.headline)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.blue.opacity(0.2))
+                    .background(languageButtonColor)
                     .cornerRadius(8)
             }
         }
         .padding()
+    }
+    
+    // ✅ Dil butonu metni - Claude durumuna göre
+    private var languageButtonText: String {
+        if enableClaude {
+            // Claude açık: Sadece dil
+            return isEnglish ? "🇺🇸 EN" : "🇹🇷 TR"
+        } else {
+            // Claude kapalı: Çeviri yönü
+            return isEnglish ? "EN→TR" : "TR→EN"
+        }
+    }
+    
+    // ✅ Dil butonu rengi - Claude durumuna göre
+    private var languageButtonColor: Color {
+        if enableClaude {
+            return Color.purple.opacity(0.2)
+        } else {
+            return isEnglish ? Color.green.opacity(0.2) : Color.blue.opacity(0.2)
+        }
     }
     
     private var voxStatusView: some View {
@@ -309,20 +329,20 @@ struct ContentView: View {
     private var modeIndicatorView: some View {
         HStack {
             // Mode icon
-            Image(systemName: enableClaude ? "brain.head.profile" : "arrow.left.arrow.right")
-                .font(.system(size: 16))
+            Image(systemName: enableClaude ? "brain.head.profile" : "arrow.left.arrow.right.circle")
+                .font(.system(size: 20))
                 .foregroundColor(.white)
             
             // Mode text
             Text(modeText)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.headline)
+                .fontWeight(.bold)
                 .foregroundColor(.white)
             
             Spacer()
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(modeColor)
         .cornerRadius(8)
         .padding(.horizontal)
@@ -330,21 +350,21 @@ struct ContentView: View {
     
     private var modeText: String {
         if enableClaude {
-            return "Mode: Claude AI"
-        } else if !isEnglish {
-            return "Mode: Translation (TR → EN)"
+            // Claude açık: Sadece mevcut dil
+            return isEnglish ? "🇺🇸 EN" : "🇹🇷 TR"
         } else {
-            return "Mode: Echo (EN)"
+            // Claude kapalı: Çeviri yönü göster
+            return isEnglish ? "EN→TR" : "TR→EN"
         }
     }
     
     private var modeColor: Color {
         if enableClaude {
+            // Claude açık: Mor
             return Color.purple.opacity(0.8)
-        } else if !isEnglish {
-            return Color.blue.opacity(0.8)
         } else {
-            return Color.green.opacity(0.8)
+            // Claude kapalı: Çeviri yönüne göre
+            return isEnglish ? Color.green.opacity(0.8) : Color.blue.opacity(0.8)
         }
     }
     
