@@ -276,8 +276,17 @@ struct ContentView: View {
             Toggle("Enable Claude AI", isOn: $enableClaude)
                 .padding(.horizontal)
                 .onChange(of: enableClaude) { _, newValue in
-                    // Claude toggle edildiğinde çeviri ayarını güncelle
+                    // ✅ Claude toggle edildiğinde çeviri ayarını güncelle
                     updateTranslationSetting()
+                    
+                    // ✅ TTS dilini de güncelle
+                    if newValue {
+                        // Claude açıldı: Orijinal dilde seslendir
+                        ttsService.setLanguage(isEnglish ? "en-US" : "tr-TR")
+                    } else {
+                        // Claude kapandı: Çevrilmiş dilde seslendir
+                        ttsService.setLanguage(isEnglish ? "tr-TR" : "en-US")
+                    }
                 }
             
             if enableClaude {
@@ -359,9 +368,8 @@ struct ContentView: View {
         // ✅ CRITICAL: AudioManager referansını SpeechService'e bağla
         speechService.audioManager = audioManager
         
-        // ✅ Set default language to Turkish
-        ttsService.setLanguage("tr-TR")
-        print("🌐 Default language: Türkçe (tr-TR)")
+        // ✅ Başlangıç çeviri ayarını yap
+        updateTranslationSetting()
         
         speechService.onRecognition = { text, language in
             self.recognizedText = text
@@ -376,7 +384,10 @@ struct ContentView: View {
         
         claudeService.onResponse = { response in
             responseText = response
-            // Claude'ın yanıtını konuştuğumuz dilde seslendir
+            // ✅ Claude'ın yanıtını currentRecognitionLanguage'da seslendir
+            // currentRecognitionLanguage zaten doğru dili tutuyor:
+            // - Claude açık: Orijinal dil (çeviri yok)
+            // - Claude kapalı: Çevrilmiş dil (echo için)
             speakResponse(response, language: self.currentRecognitionLanguage)
         }
         
@@ -406,14 +417,25 @@ struct ContentView: View {
     }
     
     private func updateTranslationSetting() {
-        // Çeviri ayarını güncelle
-        // Sadece Türkçe VE Claude kapalıysa çevir
-        if !isEnglish && !enableClaude {
-            speechService.shouldTranslateToEnglish = true
-            print("✅ Çeviri modu açık: Türkçe → İngilizce")
-        } else {
+        // ✅ Claude açıkken çeviri YAPMA - orijinal dilde sor
+        if enableClaude {
+            speechService.shouldTranslateToTurkish = false
             speechService.shouldTranslateToEnglish = false
-            print("❌ Çeviri modu kapalı (Claude: \(enableClaude ? "açık" : "kapalı"))")
+            print("❌ Claude aktif - çeviri kapalı (orijinal dilde iletişim)")
+            return
+        }
+        
+        // ✅ Claude kapalıyken: Echo için çeviri yap
+        if isEnglish {
+            // İngilizce seçili: İngilizce konuş → Türkçe'ye çevir → Türkçe seslendir
+            speechService.shouldTranslateToTurkish = true
+            speechService.shouldTranslateToEnglish = false
+            print("✅ Çeviri modu: İngilizce → Türkçe (Echo)")
+        } else {
+            // Türkçe seçili: Türkçe konuş → İngilizce'ye çevir → İngilizce seslendir
+            speechService.shouldTranslateToEnglish = true
+            speechService.shouldTranslateToTurkish = false
+            print("✅ Çeviri modu: Türkçe → İngilizce (Echo)")
         }
     }
     
@@ -475,7 +497,14 @@ struct ContentView: View {
     
     private func toggleLanguage() {
         isEnglish.toggle()
-        ttsService.setLanguage(isEnglish ? "en-US" : "tr-TR")
+        
+        // ✅ Claude açıkken: Orijinal dilde seslendir
+        // ✅ Claude kapalıyken: Çevrilmiş dilde seslendir (ters dil)
+        if enableClaude {
+            ttsService.setLanguage(isEnglish ? "en-US" : "tr-TR")
+        } else {
+            ttsService.setLanguage(isEnglish ? "tr-TR" : "en-US")
+        }
         
         // Dil değiştiğinde çeviri ayarını güncelle
         updateTranslationSetting()
