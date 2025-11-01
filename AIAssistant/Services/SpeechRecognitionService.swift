@@ -701,6 +701,7 @@ class SpeechRecognitionService: NSObject, ObservableObject {
         case "de": return "de-DE"
         case "ja": return "ja-JP"
         case "pt": return "pt-PT"
+        case "it": return "it-IT"
         case "tr": return "tr-TR"
         default: return "en-US"
         }

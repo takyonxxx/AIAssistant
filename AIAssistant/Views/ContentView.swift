@@ -20,6 +20,7 @@ enum Language: String, CaseIterable, Identifiable {
     case german = "de"
     case japanese = "ja"
     case portuguese = "pt"
+    case italian = "it"
     
     var id: String { rawValue }
     
@@ -35,6 +36,7 @@ enum Language: String, CaseIterable, Identifiable {
         case .german: return "🇩🇪 Deutsch"
         case .japanese: return "🇯🇵 日本語"
         case .portuguese: return "🇵🇹 Português"
+        case .italian: return "🇮🇹 Italiano"
         }
     }
     
@@ -50,6 +52,7 @@ enum Language: String, CaseIterable, Identifiable {
         case .german: return "DE"
         case .japanese: return "JA"
         case .portuguese: return "PT"
+        case .italian: return "IT"
         }
     }
     
@@ -65,6 +68,7 @@ enum Language: String, CaseIterable, Identifiable {
         case .german: return "de-DE"
         case .japanese: return "ja-JP"
         case .portuguese: return "pt-PT"
+        case .italian: return "it-IT"
         }
     }
     
@@ -324,19 +328,19 @@ struct ContentView: View {
 //                Text("Microphone Volume: \(Int(micVolume * 100))%")
 //                    .font(.caption)
 //                    .foregroundColor(.secondary)
-//                
+//
 //                Slider(value: $micVolume, in: 0...1)
 //                    .onChange(of: micVolume) { _, newValue in
 //                        audioManager.setMicrophoneVolume(newValue)
 //                    }
 //            }
-//            
+//
 //            // Speech Volume
 //            VStack(alignment: .leading) {
 //                Text("Speech Volume: \(Int(speechVolume * 100))%")
 //                    .font(.caption)
 //                    .foregroundColor(.secondary)
-//                
+//
 //                Slider(value: $speechVolume, in: 0...1)
 //                    .onChange(of: speechVolume) { _, newValue in
 //                        ttsService.setVolume(Float(newValue))
